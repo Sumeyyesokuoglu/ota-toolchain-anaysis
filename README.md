@@ -7,30 +7,40 @@ Bu depo, Over-The-Air (OTA) Firmware Güncelleme projesinin 2. Görevi olan **"E
 ## 1. Binary Kimlik Analizi
 <img width="1141" height="483" alt="image" src="https://github.com/user-attachments/assets/5158f0cd-609a-46d4-8602-6d9c5a0395ee" />
 
-*   **Hedef Platform Analizi:** Dosya uzantısı `.z1` olup, Zolertia Z1 (motes) için üretilmiştir.
-*   **MSP430 Mimari Tipi:** `Texas Instruments msp430 microcontroller` RISC mimarisine sahiptir.
-*   **ELF Format Bilgisi:** `Class: ELF32` yapısındadır. Ham binary değil, yapısal ELF formatındadır.
-*   **Endianness:** `2's complement, little endian` (LSB ilk sırada).
-*   **Entry Point Adresi:** `0x3100` adresinden itibaren boot edilmektedir.
-*   **ABI Bilgisi:** `Standalone App` olarak, bağımsız koşan bir gömülü yazılımdır.
+*   **Hedef Platform Analizi:** Dosya `new-firmware.z1` olup, `msp430-readelf` komutuyla incelenmiştir.
+*   **MSP430 Mimari Tipi:** Çıktıdaki `Machine` alanı `Texas Instruments msp430 microcontroller` olarak görünmektedir.
+*   **ELF Format Bilgisi:** `Class: ELF32` ve `Type: EXEC (Executable file)` yapısındadır. Ham binary değil, koşturulabilir yapısal ELF formatındadır.
+*   **Endianness:** `Data` alanından görüldüğü üzere `2's complement, little endian` (LSB ilk sırada) formatındadır.
+*   **Entry Point Adresi:** `Entry point address: 0x3100` adresinden itibaren boot edilmektedir.
+*   **ABI Bilgisi:** `OS/ABI: Standalone App` olarak, herhangi bir işletim sistemi ABI'sine bağlı kalmadan bağımsız koşan bir yazılımdır.
+*   *(Not: Compiler izi, Toolchain versiyonu ve Optimization level tahmini bu spesifik `readelf -h` ekran görüntüsünde doğrudan yer almamakla birlikte genel olarak boyut ve ELF yapısından GCC ve -Os optimizasyonu çıkarılabilir.)*
 
+  
 ## 2. Bellek Kullanım Analizi
 <img width="1086" height="74" alt="image" src="https://github.com/user-attachments/assets/9e08964a-6a44-4e39-b87e-3540c3e28165" />
 
-*   **Flash (ROM) Kullanım Miktarı:** `.text` (71715) + `.data` (336) = ~70.3 KB. Z1'in 92 KB Flash belleğine sorunsuz sığmaktadır.
-*   **RAM Kullanım Miktarı:** `.data` (336) + `.bss` (5706) = ~5.9 KB statik RAM tüketimi vardır.
-*   **Stack Tahmini:** 8 KB toplam RAM'den geriye kalan yaklaşık 2 KB, dinamik yığın (Stack) ve donanım kesmeleri (ISR) için kullanılacaktır. Ağ tamponları (packet buffer) .bss'i büyük ölçüde doldurmaktadır.
+*   **Flash, RAM, Stack, Heap Anlamları:** Flash (ROM) kalıcı kodu ve sabitleri, RAM geçici verileri, Stack fonksiyon çağrıları ve yerel değişkenleri, Heap ise dinamik bellek tahsislerini tutar.
+*   **Flash (ROM) Kullanım Miktarı:** `msp430-size` çıktısına göre `.text` (71715 bayt) + `.data` (336 bayt) = Toplam ~70.3 KB Flash bellek tüketimi vardır. Z1'in 92 KB Flash belleğine sorunsuz sığmaktadır.
+*   **RAM Kullanım Miktarı:** `.data` (336 bayt) + `.bss` (5706 bayt) = Toplam ~5.9 KB statik RAM tüketimi vardır.
+*   **Stack Tahmini:** 8 KB toplam RAM'den geriye kalan yaklaşık 2 KB, dinamik yığın (Stack) ve donanım kesmeleri (ISR) için kullanılacaktır.
+*   **Heap Var/Yok Analizi:** Contiki-NG genelde dinamik bellek tahsisi yapmaz, dolayısıyla belirgin bir `malloc/free` heap kullanımı gözlemlenmemiştir.
+*   **Section Dağılımı ve Büyük Veri Yapılarının Tespiti:** Boyutu oldukça büyük olan `.bss` bölümü (5706 bayt); ağ tamponları (packet buffers), neighbor table ve routing tabloları gibi büyük veri yapılarını barındırmaktadır.
 
 ## 3. Symbol / Function Analizi
 <img width="1217" height="375" alt="image" src="https://github.com/user-attachments/assets/96887abc-36bf-4198-8419-328c9ba28ef5" />
 
-*   **Fonksiyon İsimleri:** `button_hal_button_count`, `gpio_hal_arch_init` gibi fonksiyonlar cihazın fiziksel pin ve buton sürücülerini temsil eder.
-*   **Global/Static Değişkenler:** `__far_bss_end` gibi semboller, RAM'deki değişken bloklarının sonunu gösteren kritik linker sembolleridir.
+`msp430-nm -n` çıktısında semboller ve bayrakları (U, A, T) açıkça görülmektedir:
+*   **Fonksiyon İsimleri:** `button_hal_button_count`, `gpio_hal_arch_init`, `gpio_hal_arch_port_read_pin` gibi "U" (Undefined/External) bayraklı semboller cihazın fiziksel pin ve buton sürücülerini temsil eder. Radyo ve donanımla ilgili `spi_arch_has_lock` sembolü de listelenmiştir.
+*   **Global/Static Değişkenler:** `00000000 T __far_bss_end` gibi semboller, RAM'deki değişken bloklarının sonunu gösteren kritik linker sembolleridir.
+*   **ISR (Interrupt) ve Handler Fonksiyonları:** `00000000 A __IE1` sembolü (Interrupt Enable Register 1), sistemin kesme (interrupt) yeteneklerini donanım seviyesinde kullandığını gösterir.
 
 ## 4. String ve Metadata Analizi
 <img width="1337" height="53" alt="image" src="https://github.com/user-attachments/assets/12ecb0ef-8e99-450b-a665-960d9278dbf8" />
 
-`msp430-strings` aracı ile yapılan taramada cihaz belleğinde `Starting Contiki-NG-release/v4.8...` string'i tespit edilmiştir. Bu, cihazın seri port üzerinden (UART) boot logları basacak şekilde ayarlandığını ve IPv6/RPL tabanlı Contiki-NG 4.8 sürümünü kullandığını gösterir.
+`msp430-strings new-firmware.z1 | grep -i contiki` aracı ile yapılan taramada cihaz belleğinde tam olarak şu string tespit edilmiştir:
+`Starting Contiki-NG-release/v4.8-625-g8518cbaff-dirty`
+
+Bu çıktı, cihazın boot sırasında log basacak şekilde ayarlandığını, IPv6/RPL tabanlı **Contiki-NG** işletim sisteminin spesifik bir GitHub commit versiyonunu (`g8518cbaff` hash'i ile) barındırdığını gösterir. Sonundaki `-dirty` ifadesi, kod derlenirken commitlenmemiş yerel değişiklikler olduğuna (uncommitted changes) işaret eder.
 
 ## 5. Assembly / Instruction Analizi
 `msp430-objdump -d` ile kodun Assembly çıktısı incelendiğinde, fonksiyonların (prologue/epilogue) giriş ve çıkışlarında Stack pointer (`SP`) kullanımının oldukça agresif olduğu ve `CALL` ile `RET` komutlarının yoğunluğu görülmektedir. Bu durum işletim sisteminin context switching (görevler arası geçiş) işlemlerini donanım seviyesinde yönettiğini kanıtlar.
