@@ -8,21 +8,7 @@ Bu depo, Over-The-Air (OTA) Firmware Güncelleme projesinin 2. Görevi olan **"E
 
 Firmware dosyasının temel özelliklerini öğrenmek için `msp430-readelf -h` komutu kullanılmıştır:
 
-```bash
-$ msp430-readelf -h new-firmware.z1
-ELF Header:
-  Magic:   7f 45 4c 46 01 01 01 ff 00 00 00 00 00 00 00 00 
-  Class:                             ELF32
-  Data:                              2's complement, little endian
-  Version:                           1 (current)
-  OS/ABI:                            Standalone App
-  ABI Version:                       0
-  Type:                              EXEC (Executable file)
-  Machine:                           Texas Instruments msp430 microcontroller
-  Version:                           0x1
-  Entry point address:               0x3100
-  ...
-```
+<img width="1122" height="489" alt="image" src="https://github.com/user-attachments/assets/0b99b83d-54cf-4d2e-ba89-7980f202e209" />
 
 **Analiz ve Yorumlar:**
 * **ELF Sınıfı (Class):** Çıktıdaki `ELF32` ifadesi, bu dosyanın 32-bit nesne yapısında (Executable and Linkable Format) olduğunu gösterir. Yani bu dosya ham (raw) bir binary değil, işletim sistemi veya loader tarafından okunup anlamlandırılabilecek başlık ve hafıza haritası bilgilerine sahip yapısal bir dosyadır.
